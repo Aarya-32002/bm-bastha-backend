@@ -4,20 +4,29 @@ require('dotenv').config();
 
 const app = express();
 
-// Allow web app (localhost:3000) AND mobile app (any local network device)
+// CORS Configuration
 app.use(cors({
-  origin: function(origin, callback) {
+  origin: function (origin, callback) {
     // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
-    // Allow localhost web
-    if (origin.startsWith('http://localhost')) return callback(null, true);
-    // Allow local network IPs (192.168.x.x, 10.x.x.x)
-    if (origin.match(/^http:\/\/(192\.168\.|10\.)/)) return callback(null, true);
-    return callback(null, true); // Allow all in development
+
+    // Allow localhost web apps
+    if (origin.startsWith('http://localhost')) {
+      return callback(null, true);
+    }
+
+    // Allow local network IPs
+    if (origin.match(/^http:\/\/(192\.168\.|10\.)/)) {
+      return callback(null, true);
+    }
+
+    // Allow all origins in development
+    return callback(null, true);
   },
   credentials: true
 }));
 
+// Body Parser Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -28,63 +37,161 @@ app.use('/api/orders', require('./routes/orders'));
 app.use('/api/delivery', require('./routes/delivery'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/pincodes', require('./routes/pincodes'));
+app.use('/api/returns', require('./routes/returns'));
 
 // Admin: Users list (with pincode)
-app.get('/api/admin/users', require('./middleware/auth').authenticate, require('./middleware/auth').authorize('admin'), async (req, res) => {
-  try {
-    const db = require('./config/db');
-    const [users] = await db.query('SELECT id, name, email, phone, address, pincode, role, created_at FROM users ORDER BY created_at DESC');
-    res.json({ success: true, users });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error' });
+app.get(
+  '/api/admin/users',
+  require('./middleware/auth').authenticate,
+  require('./middleware/auth').authorize('admin'),
+  async (req, res) => {
+    try {
+      const db = require('./config/db');
+
+      const [users] = await db.query(`
+        SELECT 
+          id,
+          name,
+          email,
+          phone,
+          address,
+          pincode,
+          role,
+          created_at
+        FROM users
+        ORDER BY created_at DESC
+      `);
+
+      res.json({
+        success: true,
+        users
+      });
+
+    } catch (err) {
+      console.error(err);
+
+      res.status(500).json({
+        success: false,
+        message: 'Server error'
+      });
+    }
   }
-});
+);
 
 // Admin: Reviews
-app.get('/api/admin/reviews', require('./middleware/auth').authenticate, require('./middleware/auth').authorize('admin'), async (req, res) => {
-  try {
-    const db = require('./config/db');
-    const [reviews] = await db.query(
-      `SELECT r.*, u.name as user_name, p.name as product_name
-       FROM reviews r JOIN users u ON r.user_id = u.id JOIN products p ON r.product_id = p.id
-       ORDER BY r.created_at DESC`
-    );
-    res.json({ success: true, reviews });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error' });
+app.get(
+  '/api/admin/reviews',
+  require('./middleware/auth').authenticate,
+  require('./middleware/auth').authorize('admin'),
+  async (req, res) => {
+    try {
+      const db = require('./config/db');
+
+      const [reviews] = await db.query(`
+        SELECT 
+          r.*,
+          u.name AS user_name,
+          p.name AS product_name
+        FROM reviews r
+        JOIN users u ON r.user_id = u.id
+        JOIN products p ON r.product_id = p.id
+        ORDER BY r.created_at DESC
+      `);
+
+      res.json({
+        success: true,
+        reviews
+      });
+
+    } catch (err) {
+      console.error(err);
+
+      res.status(500).json({
+        success: false,
+        message: 'Server error'
+      });
+    }
   }
-});
+);
 
 // Customer: Submit review
-app.post('/api/reviews', require('./middleware/auth').authenticate, require('./middleware/auth').authorize('customer'), async (req, res) => {
-  try {
-    const db = require('./config/db');
-    const { product_id, order_id, rating, comment } = req.body;
-    await db.query(
-      'INSERT INTO reviews (user_id, product_id, order_id, rating, comment) VALUES (?, ?, ?, ?, ?)',
-      [req.user.id, product_id, order_id, rating, comment]
-    );
-    res.json({ success: true, message: 'Review submitted' });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error' });
+app.post(
+  '/api/reviews',
+  require('./middleware/auth').authenticate,
+  require('./middleware/auth').authorize('customer'),
+  async (req, res) => {
+    try {
+      const db = require('./config/db');
+
+      const {
+        product_id,
+        order_id,
+        rating,
+        comment
+      } = req.body;
+
+      await db.query(
+        `
+        INSERT INTO reviews 
+        (user_id, product_id, order_id, rating, comment)
+        VALUES (?, ?, ?, ?, ?)
+        `,
+        [
+          req.user.id,
+          product_id,
+          order_id,
+          rating,
+          comment
+        ]
+      );
+
+      res.json({
+        success: true,
+        message: 'Review submitted'
+      });
+
+    } catch (err) {
+      console.error(err);
+
+      res.status(500).json({
+        success: false,
+        message: 'Server error'
+      });
+    }
   }
+);
+
+// Health Check Route
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'BM Bastha API running',
+    version: '1.0.0'
+  });
 });
 
-// Health check
-app.get('/api/health', (req, res) => res.json({ status: 'BM Bastha API running', version: '1.0.0' }));
+// 404 Route Handler
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Route not found'
+  });
+});
 
-// 404
-app.use((req, res) => res.status(404).json({ success: false, message: 'Route not found' }));
-
-// Error handler
+// Global Error Handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ success: false, message: 'Internal server error' });
+
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error'
+  });
 });
 
+// Start Server
 const PORT = process.env.PORT || 5000;
+
 app.listen(PORT, '0.0.0.0', () => {
-  console.log('BM Bastha API running on http://0.0.0.0:' + PORT);
-  console.log('Local: http://localhost:' + PORT);
-  console.log('Network: http://192.168.1.3:' + PORT);
+  console.log(`BM Bastha API running on port ${PORT}`);
+  console.log(`Local: http://localhost:${PORT}`);
+  console.log(`Network: http://192.168.1.3:${PORT}`);
 });
