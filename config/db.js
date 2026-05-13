@@ -3,10 +3,10 @@ const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
+  host: process.env.DB_HOST || 'mysql.railway.internal',
   user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || 'Aarya@23880',
-  database: process.env.DB_NAME || 'bm_bastha',
+  password: process.env.DB_PASSWORD || 'EKZxgpIdYqdYXvNgISMmXevSJZajJkIz',
+  database: process.env.DB_NAME || 'railway',
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
