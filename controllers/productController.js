@@ -4,7 +4,14 @@ const db = require('../config/db');
 const getProducts = async (req, res) => {
   try {
     const { category, search, sort } = req.query;
-    let query = 'SELECT * FROM products WHERE is_active = TRUE';
+    let query = `SELECT p.*, 
+          COALESCE(c.name, p.category) as category_name,
+          COALESCE(c.icon, '🌾') as category_icon,
+          COALESCE(c.color, '#16a34a') as category_color,
+          c.slug as category_slug
+        FROM products p
+        LEFT JOIN categories c ON c.id = p.category_id
+        WHERE p.is_active = TRUE`;
     const params = [];
 
     if (category && category !== 'all') {
