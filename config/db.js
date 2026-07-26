@@ -8,7 +8,7 @@ require('dotenv').config({
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'sakura.proxy.rlwy.net',
 
-  port: process.env.DB_PORT || 10543,
+  port: process.env.DB_PORT || 47390,
 
   user: process.env.DB_USER || 'root',
 
