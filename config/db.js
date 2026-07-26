@@ -14,7 +14,7 @@ const pool = mysql.createPool({
 
   password: process.env.DB_PASSWORD || 'SfiAxyOVUdXcjAjwnzbmozqXTZDlnjPv',
 
-  database: process.env.DB_NAME || 'railway',
+  database: process.env.DB_NAME || 'bm_bastha',
 
   ssl: {
     rejectUnauthorized: false
