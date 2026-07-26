@@ -88,15 +88,30 @@ const assignProduct = async (req, res) => {
     if (!product_id) return res.status(400).json({ success: false, message: 'product_id is required' });
     const [cat] = await db.query('SELECT * FROM categories WHERE id = ?', [req.params.id]);
     if (!cat.length) return res.status(404).json({ success: false, message: 'Category not found' });
-    // Update both category_id and the legacy category text field
     await db.query(
       'UPDATE products SET category_id = ?, category = ? WHERE id = ?',
       [req.params.id, cat[0].slug, product_id]
     );
     res.json({ success: true, message: 'Product assigned to category' });
   } catch (err) {
+    console.error('Assign product error:', err);
+    res.status(500).json({ success: false, message: 'Server error: ' + err.message });
+  }
+};
+
+// PUT /api/categories/unassign/assign-product — remove product from category
+const unassignProduct = async (req, res) => {
+  try {
+    const { product_id } = req.body;
+    if (!product_id) return res.status(400).json({ success: false, message: 'product_id is required' });
+    await db.query(
+      'UPDATE products SET category_id = NULL, category = ? WHERE id = ?',
+      ['regular', product_id]
+    );
+    res.json({ success: true, message: 'Product removed from category' });
+  } catch (err) {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-module.exports = { getAll, getAllAdmin, create, update, remove, assignProduct };
+module.exports = { getAll, getAllAdmin, create, update, remove, assignProduct, unassignProduct };
