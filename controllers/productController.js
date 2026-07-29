@@ -20,13 +20,13 @@ const getProducts = async (req, res) => {
     }
 
     if (search) {
-      query += ' AND (name LIKE ? OR description LIKE ?)';
+      query += ' AND (p.name LIKE ? OR p.description LIKE ?)';
       params.push(`%${search}%`, `%${search}%`);
     }
 
-    if (sort === 'price_asc') query += ' ORDER BY price ASC';
-    else if (sort === 'price_desc') query += ' ORDER BY price DESC';
-    else query += ' ORDER BY created_at DESC';
+    if (sort === 'price_asc') query += ' ORDER BY p.price ASC';
+    else if (sort === 'price_desc') query += ' ORDER BY p.price DESC';
+    else query += ' ORDER BY p.created_at DESC';
 
     const [products] = await db.query(query, params);
     res.json({ success: true, products });
