@@ -7,7 +7,7 @@ const JWT_EXPIRES = process.env.JWT_EXPIRES_IN || '7d';
 
 const generateToken = (user) =>
   jwt.sign(
-    { id: user.id, email: user.email, role: user.role, name: user.name },
+    { id: user.id, role: user.role, name: user.name },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES }
   );
@@ -15,11 +15,11 @@ const generateToken = (user) =>
 /* ── POST /api/auth/signup ─────────────────────────────────────────────── */
 const signup = async (req, res) => {
   try {
-    const { name, email, password, phone, address, pincode } = req.body;
+    const { name, password, phone, address, pincode } = req.body;
 
     // Validation
-    if (!name || !email || !password) {
-      return res.status(400).json({ success: false, message: 'Name, email and password are required' });
+    if (!name || !phone || !password) {
+      return res.status(400).json({ success: false, message: 'Name, phone number and password are required' });
     }
     if (password.length < 6) {
       return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
@@ -40,20 +40,23 @@ const signup = async (req, res) => {
       });
     }
 
-    // Check email not already registered
-    const [existing] = await db.query('SELECT id FROM users WHERE email = ?', [email.toLowerCase().trim()]);
-    if (existing.length > 0) {
-      return res.status(409).json({ success: false, message: 'This email is already registered. Please login.' });
+    // Check phone not already registered
+    const normalizedPhone = phone ? String(phone).replace(/\D/g, '') : null;
+    if (normalizedPhone) {
+      const [existing] = await db.query('SELECT id FROM users WHERE phone = ?', [normalizedPhone]);
+      if (existing.length > 0) {
+        return res.status(409).json({ success: false, message: 'This phone number is already registered. Please login.' });
+      }
     }
 
     // Hash password and create user
     const hashed = await bcrypt.hash(password, 10);
     const [result] = await db.query(
-      'INSERT INTO users (name, email, password, phone, address, pincode, role) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [name.trim(), email.toLowerCase().trim(), hashed, phone || null, address || null, pincode, 'customer']
+      'INSERT INTO users (name, password, phone, address, pincode, role) VALUES (?, ?, ?, ?, ?, ?)',
+      [name.trim(), hashed, phone || null, address || null, pincode, 'customer']
     );
 
-    const user  = { id: result.insertId, name: name.trim(), email: email.toLowerCase().trim(), role: 'customer', pincode };
+    const user  = { id: result.insertId, name: name.trim(), role: 'customer', pincode };
     const token = generateToken(user);
 
     res.status(201).json({ success: true, message: 'Account created successfully!', token, user });
@@ -66,21 +69,22 @@ const signup = async (req, res) => {
 /* ── POST /api/auth/login ──────────────────────────────────────────────── */
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { phone, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Email and password are required' });
+    if (!phone || !password) {
+      return res.status(400).json({ success: false, message: 'Phone number and password are required' });
     }
 
-    const [users] = await db.query('SELECT * FROM users WHERE email = ?', [email.toLowerCase().trim()]);
+    const normalizedPhone = String(phone).replace(/\D/g, '');
+    const [users] = await db.query('SELECT * FROM users WHERE phone = ?', [normalizedPhone]);
     if (!users.length) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password' });
+      return res.status(401).json({ success: false, message: 'Invalid phone number or password' });
     }
 
     const user    = users[0];
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password' });
+      return res.status(401).json({ success: false, message: 'Invalid phone number or password' });
     }
 
     const token               = generateToken(user);
@@ -97,7 +101,7 @@ const login = async (req, res) => {
 const getProfile = async (req, res) => {
   try {
     const [users] = await db.query(
-      'SELECT id, name, email, phone, address, pincode, role, created_at FROM users WHERE id = ?',
+      'SELECT id, name, phone, address, pincode, role, created_at FROM users WHERE id = ?',
       [req.user.id]
     );
     if (!users.length) {

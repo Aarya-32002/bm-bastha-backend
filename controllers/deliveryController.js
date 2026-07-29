@@ -4,7 +4,7 @@ const db = require('../config/db');
 const getPartners = async (req, res) => {
   try {
     const [partners] = await db.query(
-      `SELECT dp.*, u.email FROM delivery_partners dp
+      `SELECT dp.*, u.phone as contact FROM delivery_partners dp
        JOIN users u ON dp.user_id = u.id ORDER BY dp.created_at DESC`
     );
     res.json({ success: true, partners });
@@ -19,17 +19,18 @@ const addPartner = async (req, res) => {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    const { name, email, contact, vehicle, password } = req.body;
 
-    if (!name || !email || !contact) {
-      return res.status(400).json({ success: false, message: 'Name, email and contact required' });
+    const { name, contact, vehicle, password } = req.body;
+
+    if (!name || !contact) {
+      return res.status(400).json({ success: false, message: 'Name and contact required' });
     }
 
     const hashed = await bcrypt.hash(password || 'partner123', 10);
 
     const [userResult] = await conn.query(
-      'INSERT INTO users (name, email, password, phone, role) VALUES (?, ?, ?, ?, ?)',
-      [name, email, hashed, contact, 'delivery']
+      'INSERT INTO users (name, password, phone, role) VALUES (?, ?, ?, ?)',
+      [name, hashed, contact, 'delivery']
     );
 
     await conn.query(
@@ -51,7 +52,7 @@ const addPartner = async (req, res) => {
 const getDeliveryProfile = async (req, res) => {
   try {
     const [partners] = await db.query(
-      'SELECT dp.*, u.email FROM delivery_partners dp JOIN users u ON dp.user_id = u.id WHERE dp.user_id = ?',
+      'SELECT dp.*, u.phone as contact FROM delivery_partners dp JOIN users u ON dp.user_id = u.id WHERE dp.user_id = ?',
       [req.user.id]
     );
     if (!partners.length) return res.status(404).json({ success: false, message: 'Profile not found' });

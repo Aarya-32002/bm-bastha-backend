@@ -41,13 +41,35 @@ const addAddress = async (req, res) => {
     const [existing] = await db.query('SELECT COUNT(*) as cnt FROM user_addresses WHERE user_id = ?', [req.user.id]);
     const isFirst = existing[0].cnt === 0;
 
-    const [result] = await db.query(
-      `INSERT INTO user_addresses
-        (user_id, label, house_no, street, area, city, landmark, pincode, phone, is_default)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`,
-      [req.user.id, label||'Home', house_no, street||null, area||null,
-       city, landmark||null, pincode, phone||null, (is_default||isFirst) ? 1 : 0]
-    );
+    // Build insert columns and values; we'll remove any missing DB columns dynamically
+    const insertCols = ['user_id','label','house_no','street','area','city','landmark','pincode','phone','is_default'];
+    let insertVals = [req.user.id, label||'Home', house_no, street||null, area||null,
+                      city, landmark||null, pincode, phone||null, (is_default||isFirst) ? 1 : 0];
+    let result;
+    while (true) {
+      const placeholders = insertCols.map(()=>'?').join(',');
+      const sql = `INSERT INTO user_addresses (${insertCols.join(',')}) VALUES (${placeholders})`;
+      try {
+        [result] = await db.query(sql, insertVals);
+        break;
+      } catch (e) {
+        if (e && e.code === 'ER_BAD_FIELD_ERROR') {
+          const msg = e.sqlMessage || e.message || '';
+          const m = msg.match(/Unknown column '\\?(\w+)\\?' in 'field list'/i) || msg.match(/Unknown column "(\w+)" in 'field list'/i);
+          const col = m && m[1];
+          if (col) {
+            const idx = insertCols.indexOf(col);
+            if (idx !== -1) {
+              insertCols.splice(idx,1);
+              insertVals.splice(idx,1);
+              console.warn(`Missing DB column '${col}' — retrying INSERT without it`);
+              continue;
+            }
+          }
+        }
+        throw e;
+      }
+    }
     res.status(201).json({ success: true, message: 'Address added', id: result.insertId });
   } catch (err) {
     console.error('Add address error:', err);
@@ -72,16 +94,41 @@ const updateAddress = async (req, res) => {
     if (is_default) {
       await db.query('UPDATE user_addresses SET is_default = FALSE WHERE user_id = ?', [req.user.id]);
     }
-    await db.query(
-      `UPDATE user_addresses
-       SET label=?, house_no=?, street=?, area=?, city=?, landmark=?, pincode=?, phone=?, is_default=?
-       WHERE id=? AND user_id=?`,
-      [label||existing[0].label, house_no||existing[0].house_no, street||null,
-       area||null, city||existing[0].city, landmark||null,
-       pincode||existing[0].pincode, phone||null,
-       is_default ? 1 : existing[0].is_default,
-       req.params.id, req.user.id]
-    );
+    // Build update set parts dynamically and retry if DB reports missing columns
+    const updateFields = ['label','house_no','street','area','city','landmark','pincode','phone','is_default'];
+    const updateValsBase = {
+      label: label||existing[0].label,
+      house_no: house_no||existing[0].house_no,
+      street: street||null,
+      area: area||null,
+      city: city||existing[0].city,
+      landmark: landmark||null,
+      pincode: pincode||existing[0].pincode,
+      phone: phone||null,
+      is_default: is_default ? 1 : existing[0].is_default,
+    };
+    while (true) {
+      const setParts = updateFields.map(f=>`${f}=?`);
+      const params = updateFields.map(f=>updateValsBase[f]);
+      const sql = `UPDATE user_addresses SET ${setParts.join(', ')} WHERE id=? AND user_id=?`;
+      try {
+        await db.query(sql, [...params, req.params.id, req.user.id]);
+        break;
+      } catch (e) {
+        if (e && e.code === 'ER_BAD_FIELD_ERROR') {
+          const msg = e.sqlMessage || e.message || '';
+          const m = msg.match(/Unknown column '\\?(\w+)\\?' in 'field list'/i) || msg.match(/Unknown column "(\w+)" in 'field list'/i);
+          const col = m && m[1];
+          const idx = col ? updateFields.indexOf(col) : -1;
+          if (idx !== -1) {
+            updateFields.splice(idx,1);
+            console.warn(`Missing DB column '${col}' — retrying UPDATE without it`);
+            continue;
+          }
+        }
+        throw e;
+      }
+    }
     res.json({ success: true, message: 'Address updated' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error' });

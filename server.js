@@ -36,7 +36,7 @@ app.use('/api/categories', require('./routes/categories'));
 app.get('/api/admin/users', require('./middleware/auth').authenticate, require('./middleware/auth').authorize('admin'), async (req, res) => {
   try {
     const db = require('./config/db');
-    const [users] = await db.query('SELECT id, name, email, phone, address, pincode, role, created_at FROM users ORDER BY created_at DESC');
+    const [users] = await db.query('SELECT id, name, phone, address, pincode, role, created_at FROM users ORDER BY created_at DESC');
     res.json({ success: true, users });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Server error' });
