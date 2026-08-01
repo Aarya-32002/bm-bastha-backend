@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { getLinkedUserIds } = require('../utils/accountScope');
 
 const createNotification = async (userId, title, message, type) => {
   await db.query(
@@ -141,12 +142,18 @@ const placeOrder = async (req, res) => {
 // @GET /api/orders/my
 const getMyOrders = async (req, res) => {
   try {
+    const linkedUserIds = await getLinkedUserIds(db, req.user);
+    if (!linkedUserIds.length) {
+      return res.json({ success: true, orders: [] });
+    }
+
+    const placeholders = linkedUserIds.map(() => '?').join(', ');
     const [orders] = await db.query(
       `SELECT o.*, dp.name as delivery_name, dp.contact as delivery_contact
        FROM orders o
        LEFT JOIN delivery_partners dp ON o.delivery_partner_id = dp.id
-       WHERE o.user_id = ? ORDER BY o.created_at DESC`,
-      [req.user.id]
+       WHERE o.user_id IN (${placeholders}) ORDER BY o.created_at DESC`,
+      linkedUserIds
     );
     for (const order of orders) {
       const [items] = await db.query(
@@ -157,6 +164,7 @@ const getMyOrders = async (req, res) => {
     }
     res.json({ success: true, orders });
   } catch (err) {
+    console.error('Get my orders error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
