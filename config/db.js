@@ -12,7 +12,7 @@ const pool = mysql.createPool({
 
   user: process.env.DB_USER || 'root',
 
-  password: process.env.DB_PASSWORD || 'SfiAxyOVUdXcjAjwnzbmozqXTZDlnjPv',
+  password: process.env.DB_PASSWORD || '2388008832',
 
   database: process.env.DB_NAME || 'bm_bastha',
 

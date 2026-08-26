@@ -7,6 +7,7 @@ const createNotification = async (userId, title, message, type) => {
     [userId, title, message, type]
   );
 };
+const { sendWhatsApp } = require('../utils/whatsapp');
 
 // @POST /api/orders
 const placeOrder = async (req, res) => {
@@ -122,6 +123,24 @@ const placeOrder = async (req, res) => {
       'Your order #' + orderId + ' placed successfully. Total: Rs.' + finalTotal.toFixed(2),
       'order_placed'
     );
+
+    // If order contains any product with name including 'rice', send a WhatsApp message
+    try {
+      const [riceItems] = await db.query(
+        `SELECT p.name, p.id FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ? AND LOWER(p.name) LIKE '%rice%'`,
+        [orderId]
+      );
+      if (riceItems.length) {
+        // get user info
+        const [users] = await db.query('SELECT name, phone FROM users WHERE id = ?', [req.user.id]);
+        const user = users[0] || {};
+        const toNumber = '+918555089820'; // include country code with +
+        const msg = `New rice order #${orderId} placed by ${user.name || 'User ' + req.user.id} (${user.phone || 'N/A'}). Total: Rs.${finalTotal.toFixed(2)}.`;
+        sendWhatsApp(toNumber, msg).catch(() => {});
+      }
+    } catch (e) {
+      console.error('WhatsApp notify error:', e);
+    }
 
     res.status(201).json({
       success: true,
