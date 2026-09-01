@@ -3,7 +3,7 @@ const jwt    = require('jsonwebtoken');
 const db     = require('../config/db');
 
 const JWT_SECRET  = process.env.JWT_SECRET  || 'bmbastha_super_secret_jwt_key_2024';
-const JWT_EXPIRES = process.env.JWT_EXPIRES_IN || '7d';
+const JWT_EXPIRES = process.env.JWT_EXPIRES_IN || '365d';
 
 const generateToken = (user) =>
   jwt.sign(
